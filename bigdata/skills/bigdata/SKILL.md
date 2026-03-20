@@ -56,7 +56,7 @@ If `bigdata` is not found, install it following the steps for the current platfo
 
 ### Linux (x86_64)
 1. Create the install directory if it doesn't exist: `mkdir -p ~/.local/bin`
-2. Download the latest binary: download `bigdata-x86_64-unknown-linux-musl` from https://github.com/willtoth/bigdata/releases/latest
+2. Download the latest binary: download `bigdata-x86_64-unknown-linux-musl` from https://github.com/willtoth/claude-plugins/releases/latest
 3. Save it to `~/.local/bin/bigdata`
 4. Make it executable: `chmod +x ~/.local/bin/bigdata`
 5. Check if `~/.local/bin` is on PATH: `echo $PATH | grep -q "$HOME/.local/bin"`
@@ -65,7 +65,7 @@ If `bigdata` is not found, install it following the steps for the current platfo
 
 ### Windows (x86_64)
 1. Create the install directory: `New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\bigdata"`
-2. Download the latest binary: download `bigdata-x86_64-pc-windows-msvc.exe` from https://github.com/willtoth/bigdata/releases/latest
+2. Download the latest binary: download `bigdata-x86_64-pc-windows-msvc.exe` from https://github.com/willtoth/claude-plugins/releases/latest
 3. Save it as `$env:LOCALAPPDATA\bigdata\bigdata.exe`
 4. Check if the directory is on PATH: `$env:PATH -split ';' | Where-Object { $_ -eq "$env:LOCALAPPDATA\bigdata" }`
 5. If not on PATH, add it (user-scope, no admin needed):

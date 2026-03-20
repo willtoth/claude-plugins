@@ -12,7 +12,7 @@ Claude Code plugins by William Toth.
 
 ### 1. Install the bigdata binary
 
-Download from [GitHub Releases](https://github.com/willtoth/bigdata/releases/latest):
+Download from [GitHub Releases](https://github.com/willtoth/claude-plugins/releases/latest):
 
 - **Linux x64:** `bigdata-x86_64-unknown-linux-musl`
 - **Windows x64:** `bigdata-x86_64-pc-windows-msvc.exe`
