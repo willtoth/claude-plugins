@@ -4,17 +4,13 @@
     "name": "William Toth"
   },
   "metadata": {
-    "description": "Plugins for FRC Big Data telemetry analysis",
+    "description": "Claude Code plugins by William Toth",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "bigdata",
-      "source": {
-        "source": "github",
-        "repo": "willtoth/bigdata-plugin",
-        "ref": "v0.1.0"
-      },
+      "source": "./bigdata",
       "description": "FRC Big Data telemetry analysis skill for Claude Code",
       "version": "0.1.0",
       "author": {

@@ -1,0 +1,8 @@
+{
+  "name": "bigdata",
+  "version": "0.1.0",
+  "description": "FRC Big Data telemetry analysis tool. Ingest WPILog files, query robot data with SQL, browse schema registry.",
+  "author": {
+    "name": "William Toth"
+  }
+}
