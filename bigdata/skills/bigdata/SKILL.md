@@ -34,6 +34,8 @@ allowed-tools: Bash(bigdata *)
 | Field details | `bigdata schema describe <field> --json` |
 | Regenerate names | `bigdata schema regenerate-names [--dry-run] --json` |
 | Generate skill | `bigdata generate-skill [--output <path>]` |
+| Visualize query | `bigdata visualize "<sql>" [--save path.rrd] --json` |
+| Match dashboard | `bigdata dashboard <robot> <event> <match> [--save path.rrd] --json` |
 
 ## Operating Principles
 
@@ -47,6 +49,7 @@ allowed-tools: Bash(bigdata *)
 - **Minimize invocations** — each `bigdata` call starts a new process and opens the database. Construct SQL carefully and pass it inline as a quoted string; do not write SQL to temporary files, pipe output through shell tools (e.g., `| head`), or make exploratory test queries.
 - **On query failure, verify field names** — if a `bigdata query` returns an error (column not found, syntax error), run `bigdata context --json` or `bigdata schema search <term> --json` to confirm the correct column names before retrying. Do not guess alternative names or retry the same query.
 - **Report errors to the user** — do not silently retry when `ok` is `false`. Show the error message from the response.
+- **Use `visualize` for plots, `dashboard` for full-match overviews.** When the user asks to "show", "plot", "visualize", or "compare" time-series data, use `bigdata visualize` to send query results to a Rerun viewer. For a complete match overview, use `bigdata dashboard`. Every command returns immediately — a background daemon manages the viewer at `http://localhost:9090`, auto-starting on first use and stopping after 30 minutes of inactivity. The `match_elapsed` timeline auto-anchors t=0 to autonomous start so all matches align. These commands require the `visualization` feature to be compiled in.
 
 ## JSON Envelope Contract
 
@@ -427,6 +430,79 @@ bigdata schema search <pattern> [--json]
 
 ---
 
+### `bigdata visualize` *(requires `visualization` feature)*
+
+Execute a SQL query and send results to a Rerun viewer for interactive time-series visualization. Auto-detects timestamp columns and computes a `match_elapsed` timeline anchored to the start of autonomous.
+
+**Syntax:**
+
+```
+bigdata visualize "<sql>" [--save <path.rrd>] [--limit N] [--time-column <name>] --json
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `<sql>` | Yes | SQL query to execute and visualize |
+| `--save` | No | Write results to an `.rrd` file instead of opening a viewer |
+| `--limit` | No | Maximum rows to visualize (default: unlimited) |
+| `--time-column` | No | Column to use as time axis (default: auto-detect `timestamp`) |
+
+**Default behavior:** Every invocation returns immediately with JSON output. A background daemon automatically starts if not already running, serving a web viewer at `http://localhost:9090`. The daemon auto-stops after 30 minutes of inactivity and saves session data for automatic restoration on the next command. Use `--save` to write an `.rrd` file instead.
+
+**JSON data payload:**
+
+```json
+{
+  "rows": 5000,
+  "entities": 12,
+  "timelines": ["controller_time", "match_elapsed_ms"],
+  "viewer_url": "http://localhost:9090"
+}
+```
+
+**Timelines:**
+- `controller_time`: raw roboRIO timestamp in seconds (microseconds / 1e6)
+- `match_elapsed_ms`: milliseconds relative to autonomous start (t=0 = first moment auto=true AND enabled=true). Pre-match data is negative; auto is 0-15000ms; teleop starts ~18000ms; match ends ~153000ms. If no FMS data found, falls back to t=0 = first timestamp.
+
+**Exit code:** 0 on success, 1 on error.
+
+---
+
+### `bigdata dashboard` *(requires `visualization` feature)*
+
+Visualize all telemetry for a specific match. Queries `v_fields` for the match and sends all numeric/boolean columns to Rerun with match-elapsed timeline alignment. Noisy/constant fields are filtered out automatically.
+
+**Syntax:**
+
+```
+bigdata dashboard <robot> <event> <match> [--groups <prefixes>] [--save <path.rrd>] --json
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `<robot>` | Yes | Robot name |
+| `<event>` | Yes | Event key |
+| `<match>` | Yes | Match key |
+| `--groups` | No | Comma-separated field prefix groups to show (e.g., `drive,elevator,algae`). Omit for all. |
+| `--save` | No | Write to `.rrd` file |
+
+**Default behavior:** Same as `visualize` — every invocation returns immediately, auto-starting the background daemon if needed.
+
+**JSON data payload:**
+
+```json
+{
+  "rows": 15000,
+  "entities": 45,
+  "timelines": ["controller_time", "match_elapsed_ms"],
+  "viewer_url": "http://localhost:9090"
+}
+```
+
+**Exit code:** 0 on success, 1 on error.
+
+---
+
 ## FRC Domain Context
 
 - **Robot name**: a user-defined label (e.g., "CrabBot"), not the FRC team number.
@@ -463,6 +539,26 @@ The `query` command can access these VIEWs (created automatically when the query
 - **Check null_count**: Query results include a `null_count` field per column (when > 0). If a column has high null_count, add `WHERE field IS NOT NULL` or use `v_fields` which forward-fills.
 - **Analyzing boolean and state fields**: In `v_fields`, forward-filled booleans have a value at every row — sampling raw rows tells you nothing useful (e.g., 500 rows of `launcher_has_coral` will all have the same value). Instead, use `LAG()` to find **transitions**: `WHERE $FIELD <> LAG($FIELD) OVER (PARTITION BY "match" ORDER BY timestamp)`. For VARCHAR state fields (like `launcher_state`), use the same approach to detect state changes. To understand the distinct values of a state field, use `SELECT DISTINCT $FIELD FROM v_fields WHERE $FIELD IS NOT NULL` rather than sampling rows.
 - **Match timer and match phases**: `driver_station_match_time` (DOUBLE) counts **down**, not up — 15→0 during autonomous, 135→0 during teleop. Use `driver_station_autonomous` (BOOLEAN, `true` during auto, `false` during teleop) to distinguish which phase the countdown refers to. Both are sparse/forward-filled fields available in `v_fields`. To present human-readable match time, combine both fields (e.g., "auto 14.0s remaining" vs "teleop 131.0s remaining").
+
+## Visualization (Rerun Integration)
+
+When the binary is compiled with `--features visualization`, three additional commands are available:
+
+- **`bigdata visualize "<sql>"`** — Execute a query and send results to a Rerun viewer for interactive time-series exploration. Each numeric/boolean column becomes a plottable entity. Struct fields are automatically expanded into separate plots per member.
+- **`bigdata dashboard <robot> <event> <match>`** — Visualize all `v_fields` telemetry for a specific match in one shot. Use `--groups drive,elevator` to filter to specific field prefix groups.
+
+Every command returns immediately. A background daemon automatically manages the web viewer at `http://localhost:9090` — it starts on first use and auto-stops after 30 minutes of inactivity, saving session data for automatic restoration on the next command. Run `dashboard` first, then `visualize` with specific queries to incrementally build up a dashboard.
+
+**Timeline alignment:** The `match_elapsed` timeline is auto-computed by anchoring t=0 to the first moment `driver_station_autonomous=true AND driver_station_enabled=true` (auto start). This means:
+- Pre-match data appears as negative elapsed seconds
+- Autonomous runs from 0s to ~15s
+- The ~3s auto→teleop gap is preserved (not collapsed)
+- Teleop runs from ~18s to ~153s
+- Post-match data appears as >153s
+
+For cross-match comparison, each match gets its own anchor point. All matches align at t=0 (auto start). The `controller_time` timeline (raw roboRIO microseconds converted to seconds) is always available as an alternative.
+
+Use `--save path.rrd` to create portable `.rrd` files for sharing or offline review.
 
 ## Known Limitations
 
